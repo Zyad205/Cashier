@@ -14,6 +14,8 @@ class Cart(Treeview):
             show="headings",
             columns=("Name", "Price", "Qty", "Total price"),
             selectmode="browse")
+        
+        self.total_price = 0
 
         self.scrollbar = ctk.CTkScrollbar(
             master, orientation="vertical", command=self.yview)
@@ -48,7 +50,7 @@ class Cart(Treeview):
 
         self.qty_text = ctk.StringVar(value="")
 
-        self.qty_text.trace_add("write", self.update_total_price)
+        self.qty_text.trace_add("write", self.update_qty_total_price)
 
         self.qty_entry = ctk.CTkEntry(
             master,
@@ -62,20 +64,20 @@ class Cart(Treeview):
         total_price_label = ctk.CTkLabel(
             master,
             font=self.big_font,
-            text="Total Price:")
+            text=" Total Price:")
 
-        total_price_label.place(relx=0.55, rely=0.73)
+        total_price_label.place(relx=0.545, rely=0.73)
 
         # Total price entry
-        self.total_price = ctk.StringVar(value="")
+        self.qty_total_price = ctk.StringVar(value="")
 
-        self.total_price_entry = ctk.CTkEntry(
+        self.qty_total_price_entry = ctk.CTkEntry(
             master,
             font=self.small_font,
             state="readonly",
-            textvariable=self.total_price)
+            textvariable=self.qty_total_price)
 
-        self.total_price_entry.place(relx=0.553, rely=0.78)
+        self.qty_total_price_entry.place(relx=0.553, rely=0.78)
 
         self.update_btn = ctk.CTkButton(
             master,
@@ -83,6 +85,32 @@ class Cart(Treeview):
             command=self.update_btn_command)
 
         self.update_btn.place(relx=0.48, rely=0.83)
+
+        delete_btn = ctk.CTkButton(
+            master,
+            text="Delete selected item",
+            command=self.delete_item)
+
+        delete_btn.place(relx=0.56, rely=0.83, relwidth=0.09)
+
+        # ------- #
+        total_price_label_two = ctk.CTkLabel(
+            master,
+            font=self.big_font,
+            text=" Total Price:")
+
+        total_price_label_two.place(relx=0.86, rely=0.73)
+
+        # Total price entry
+        self.total_price_text = ctk.StringVar(value="")
+
+        self.total_price_entry = ctk.CTkEntry(
+            master,
+            font=self.small_font,
+            state="readonly",
+            textvariable=self.total_price_text)
+
+        self.total_price_entry.place(relx=0.87, rely=0.78, relwidth=0.1)
 
     def column_width(self):
         width = round(self.winfo_screenwidth() / 2)
@@ -129,6 +157,8 @@ class Cart(Treeview):
         self.item(item_name,
                   values=(item_name, values[1], new_qty, new_total_price))
 
+        self.update_total_price(False)
+
     def add(self, item_name, item_price, qty, total_price):
 
         if self.exists(item_name):
@@ -144,6 +174,8 @@ class Cart(Treeview):
                     item_price,
                     qty,
                     total_price))
+            
+            self.update_total_price(True, round(float(total_price), 2))
 
     def update_btn_command(self):
         qty_text = self.qty_text.get()
@@ -154,15 +186,16 @@ class Cart(Treeview):
 
                 self.qty_text.set("")
                 self.qty_entry.configure(state="readonly")
-                self.total_price.set("")
+                self.qty_total_price.set("")
 
     def item_selected(self, *_):
-        item = self.selection()[0]
+        item = self.selection()
+        if len(item) != 0:
+            item = item[0]
+            self.qty_text.set(str(self.item(item)["values"][2]))
+            self.qty_entry.configure(state="normal")
 
-        self.qty_text.set(str(self.item(item)["values"][2]))
-        self.qty_entry.configure(state="normal")
-
-    def update_total_price(self, *_):
+    def update_qty_total_price(self, *_):
         qty_text = self.qty_text.get()
         if qty_text.isdigit():
             item = self.selection()[0]
@@ -170,11 +203,27 @@ class Cart(Treeview):
 
             total_price = str(round(int(qty_text) * round(float(item_price), 2), 2))
 
-            self.total_price.set(total_price)
+            self.qty_total_price.set(total_price)
 
+    def delete_item(self):
+        item = self.selection()
+        if len(item) != 0:
+            self.delete(item[0])
 
+    def update_total_price(self, add, total_price=None):
+        if add:
+            self.total_price = round(self.total_price + total_price, 2)
+            self.total_price_text.set(str(self.total_price))
+        else:
+            children = self.get_children()
 
-            
+            self.total_price = 0
+            for child in children:
+                value = self.item(child)["values"][3]
+
+                self.total_price = round(self.total_price + round(float(value), 2), 2)
+                
+            self.total_price_text.set(str(self.total_price))
 
 
 class App(ctk.CTk):
