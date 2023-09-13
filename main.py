@@ -189,7 +189,7 @@ class AdminPanel:
     
     def update_item(self):
         name_text = self.name_text.get()
-        if name_text != "":
+        if not name_text.isspace():
             try:
                 price = round(float(self.price_text.get()), 2)
                 if price > 0:
@@ -283,7 +283,25 @@ class AdminPanel:
             self.add_item_window.focus()
         
     def add_item(self):
-        pass
+        barcode = self.aiw_barcodd_text.get()
+        name = self.aiw_name_text.get()
+        price = self.aiw_price_text.get()
+        if barcode.isdigit() and not name.isspace():
+            try:
+                price = round(float(price), 2)    
+                cus = self.db.cursor()
+
+                self.treeview.insert(parnet="", index="end", iid=barcode, values=(barcode, name, price))
+
+   
+    
+              
+            except ValueError:
+                pass
+
+
+
+ 
 
 
 class Cart(Treeview):
