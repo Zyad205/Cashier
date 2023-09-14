@@ -23,6 +23,7 @@ class AdminPanel:
         self.get_all_items()
 
         self.add_item_window = None
+        self.add_employ_window = None
         
     def create_sign_in(self, font):
         self.sign_in_frame = ctk.CTkFrame(self.master)
@@ -110,6 +111,15 @@ class AdminPanel:
             hover_color="#daf5bf",
             text_color="#7c7d7a")
         
+        add_employ_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Add employ \n\nNot working",
+            command=self.add_employ_window,
+            font=very_small_font,
+            fg_color="#b8c5d9",
+            hover_color="#c7cdd6",
+            text_color="black")
+        
         barcode_entry.place(relx=0.001, rely=0.8, relwidth=0.085)
         barcode_label.place(relx=0.001, rely=0.75)
         name_label.place(relx=0.1, rely=0.75)
@@ -119,6 +129,7 @@ class AdminPanel:
         update_btn.place(relx=0.001, rely=0.85, relwidth=0.07, relheight=0.035)
         delete_btn.place(relx=0.08, rely=0.85, relwidth=0.07, relheight=0.035)
         add_btn.place(relx=0.001, rely=0.9, relheight=0.09, relwidth=0.07)
+        add_employ_btn.place(relx=0.08, rely=0.9, relheight=0.09, relwidth=0.07)
 
     def create_treeview(self):
 
@@ -282,8 +293,9 @@ class AdminPanel:
         else:
             self.add_item_window.focus()
         
+        
     def add_item(self):
-        barcode = self.aiw_barcodd_text.get()
+        barcode = self.aiw_barcode_text.get()
         name = self.aiw_name_text.get()
         price = self.aiw_price_text.get()
         if barcode.isdigit() and not name.isspace():
@@ -291,17 +303,33 @@ class AdminPanel:
                 price = round(float(price), 2)    
                 cus = self.db.cursor()
 
-                self.treeview.insert(parnet="", index="end", iid=barcode, values=(barcode, name, price))
+                try:
+                    cus.execute("INSERT INTO items VALUES(? , ?, ?)", (barcode, name, price))
+                    self.treeview.insert(parent="", index="end", iid=barcode, values=(barcode, name, price))
+                    self.aiw_barcode_text.set("")
+                    self.aiw_name_text.set("")
+                    self.aiw_price_text.set("")
 
-   
-    
-              
+                    self.db.commit()
+
+                    cus.close()
+                except sqlite3.IntegrityError:
+                    messagebox.showerror(title="Item registered", message="Item is already added")
+
             except ValueError:
                 pass
 
+    def add_employ_window(self):
+        if self.add_item_window is None or not self.add_item_window.winfo_exists():
+            self.add_item_window = ctk.CTkToplevel()
+            frame = self.add_item_window
 
+            frame.title("Add employ")
+            frame.geometry(f"450x130")
+            frame.resizable(True, False)
 
- 
+        else:
+            self.add_item_window.focus()
 
 
 class Cart(Treeview):
@@ -594,7 +622,6 @@ class App(ctk.CTk):
             font=self.SMALL_FONT,
             switch_width=48,
             switch_height=24)
-        
 
         button = ctk.CTkButton(
             frame,
@@ -613,6 +640,14 @@ class App(ctk.CTk):
             frame,
             font=self.BIG_FONT,
             text="Item name:")
+        
+        # Item name
+        self.item_name = ctk.StringVar(value="")
+        self.item_name_entry = ctk.CTkEntry(
+            frame,
+            font=self.SMALL_FONT,
+            state="readonly",
+            textvariable=self.item_name)
 
         # Second label
         second_label = ctk.CTkLabel(
@@ -620,57 +655,18 @@ class App(ctk.CTk):
             font=self.BIG_FONT,
             text="Item Price:")
 
-        # Item name
-        self.item_name = ctk.StringVar(value="")
-        self.item_name_label = ctk.CTkEntry(
-            frame,
-            font=self.SMALL_FONT,
-            state="readonly",
-            textvariable=self.item_name)
 
         # Item price
         self.item_price = ctk.StringVar(value="")
-        self.item_price_label = ctk.CTkEntry(
+        self.item_price_entry = ctk.CTkEntry(
             frame,
             font=self.SMALL_FONT,
             state="readonly",
             textvariable=self.item_price)
 
-        # Qty var
-        self.qty_text = ctk.StringVar(value="1")
-        self.qty_text.trace_add("write", self.update_total_price)
-
-        # Qty label
-        self.qty_label = ctk.CTkLabel(
-            frame,
-            font=self.BIG_FONT,
-            text="Qty:")
-
-        # Qty entry
-        self.qty_entry = ctk.CTkEntry(
-            frame,
-            textvariable=self.qty_text,
-            font=self.SMALL_FONT)
-
-        # Total price label
-        total_price_label = ctk.CTkLabel(
-            frame,
-            font=self.BIG_FONT,
-            text="Total Price:")
-
-        # Total price entry
-        self.total_price = ctk.StringVar(value="")
-
-        self.total_price_entry = ctk.CTkEntry(
-            frame,
-            font=self.SMALL_FONT,
-            state="readonly",
-            textvariable=self.total_price)
-
         # Add to cart button
         self.add_btn = ctk.CTkButton(
             frame, text="Add to cart", command=self.add_to_cart)
-
 
         entry.place(relx=0.005, rely=0.01, relwidth=0.3, anchor="nw")
         auto_add.place(relx=0.01, rely=0.12)
@@ -678,13 +674,9 @@ class App(ctk.CTk):
         button_two.place(relx=0.11, rely=0.07, relheight=0.04, relwidth=0.1)
         first_label.place(relx=0.005, rely=0.2)
         second_label.place(relx=0.205, rely=0.2)
-        self.item_name_label.place(relx=0.0054, rely=0.3, relwidth=0.15)
-        self.item_price_label.place(relx=0.2054, rely=0.3)
-        self.qty_label.place(relx=0.0054, rely=0.361)
-        self.qty_entry.place(relx=0.006, rely=0.423, relwidth=0.023)
-        total_price_label.place(relx=0.07, rely=0.361)
-        self.total_price_entry.place(relx=0.075, rely=0.423)
-        self.add_btn.place(relx=0.01, rely=0.5, relwidth=0.08)
+        self.item_name_entry.place(relx=0.0054, rely=0.26, relwidth=0.15)
+        self.item_price_entry.place(relx=0.2054, rely=0.26)
+        self.add_btn.place(relx=0.0054, rely=0.33, relwidth=0.08)
 
     def retrieve_items(self):
         barcode = self.entry_text.get()
@@ -704,33 +696,20 @@ class App(ctk.CTk):
             self.item_name.set(result[0])  # Name
             self.item_price.set(str(result[1]))  # Price
 
-            self.qty_text.set("1")
         else:
             messagebox.showerror(
                 "Item not found",
-                "Item is not registered",
-                icon=messagebox.ERROR)
+                "Item is not registered")
 
         cursor.close()
-
-    def update_total_price(self, *_):
-        item_price = self.item_price_label.get()
-        qty_text = self.qty_text.get()
-        if item_price != "" and qty_text != "":
-            if qty_text.isdigit():
-                result = round(round(float(item_price), 2) * int(qty_text), 2)
-                self.total_price.set(str(result))
-                self.last_qty_text = qty_text
-            else:
-                self.qty_text.set(self.last_qty_text)
 
     def add_to_cart(self):
         if self.item_name.get() != "":
 
             item_name = self.item_name.get()
             item_price = self.item_price.get()
-            qty_text = self.last_qty_text
-            total_price = self.total_price.get()
+            qty_text = 1
+            total_price = self.item_price.get()
 
             self.cart.add(
                 item_name=item_name,
@@ -741,8 +720,6 @@ class App(ctk.CTk):
             self.entry_text.set("")
             self.item_name.set("")
             self.item_price.set("")
-            self.qty_text.set("")
-            self.total_price.set("")
 
     def search_and_add(self):
         self.retrieve_items()
