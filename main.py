@@ -320,7 +320,7 @@ class AdminPanel:
         
     def add_item(self):
         barcode = self.aiw_barcode_text.get()
-        name = self.aiw_name_text.get()
+        name = self.aiw_name_text.get().strip()
         price = self.aiw_price_text.get()
         if barcode.isdigit() and not name.isspace():
             try:
@@ -430,8 +430,9 @@ class AdminPanel:
 
         if not name.isspace() and not password.isspace():
             cus = self.db.cursor()
+            name = name.strip()
+            password = password.strip()
             values = [name, password, root]
-
             try:
                 cus.execute("""INSERT INTO admin VALUES(?, ?, ?)""", values)
                 
@@ -453,8 +454,8 @@ class AdminPanel:
 
             self.aew_treeview.delete(item[0])
 
-            cus.execute("""DELETE FROM table
-                           WHERE name = ?, password = ?;""", [item[0], item[1]])
+            cus.execute("""DELETE FROM admin
+                           WHERE name = ? AND password = ?;""", [item[0], item[1]])
             
             self.db.commit()
             cus.close()
