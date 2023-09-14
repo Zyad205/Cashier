@@ -10,13 +10,16 @@ class AdminPanel:
     
     def __init__(self, master, very_small_font, small_font, big_font):
         self.master = master
-        self.signed_in = False
-        self.create_sign_in(small_font)
-        self.create_main_items(very_small_font, small_font, big_font)
-        
+
         self.very_small_font = very_small_font
         self.small_font = small_font
         self.big_font = big_font
+
+        self.signed_in = False
+
+        self.create_sign_in(small_font)
+        self.create_main_items(very_small_font, small_font, big_font)
+        
 
         self.db = sqlite3.connect("supermarket.db")
 
@@ -26,7 +29,7 @@ class AdminPanel:
         self.add_employ_window = None
         
     def create_sign_in(self, font):
-        self.sign_in_frame = ctk.CTkFrame(self.master)
+        self.sign_in_frame = ctk.CTkFrame(self.master, fg_color="#333333")
         frame = self.sign_in_frame
         
         label = ctk.CTkLabel(frame, text="Enter root password: ", font=font)
@@ -113,7 +116,7 @@ class AdminPanel:
         
         add_employ_btn = ctk.CTkButton(
             self.main_frame,
-            text="Add employ \n\nNot working",
+            text="Add employ",
             command=self.add_employ_window,
             font=very_small_font,
             fg_color="#b8c5d9",
@@ -158,7 +161,9 @@ class AdminPanel:
     def create_style(self, very_small_font):
         style = Style()
         style.theme_use("default")
+        # ------- #
 
+        # First one
         style.configure(
             "Admin.Treeview",
             background="#b3b5aa",
@@ -167,7 +172,7 @@ class AdminPanel:
             borderwidth=0,
             rowheight=25,
             font=very_small_font)
-        ctk.CTkLabel
+
         style.map("Admin.Treeview", background=[("selected", "#807e7d")])
         style.configure(
             'Admin.Treeview.Heading',
@@ -176,7 +181,27 @@ class AdminPanel:
             font=('Arial', 17),
             relief="flat",
             padding=5)
-    
+        
+        # ------- #
+        # Second one
+        style.configure(
+            "AEW.Treeview",
+            background="#b3b5aa",
+            foreground="#e3ffcc",
+            fieldbackground="#b3b5aa",
+            borderwidth=0,
+            rowheight=25,
+            font=10)
+
+        style.map("AEW.Treeview", background=[("selected", "#807e7d")])
+        style.configure(
+            'AEW.Treeview.Heading',
+            foreground="white",
+            background="#f5e0ae",
+            font=('Arial', 14),
+            relief="flat",
+            padding=5)
+
     def check_password(self):
         if self.entry_text.get() == "1":
             self.sign_in_frame.place_forget()
@@ -291,8 +316,7 @@ class AdminPanel:
             price_entry.place(relx=0.57, rely=0.3, relwidth=0.15)
             btn.place(relx=0.75, rely=0.3, relwidth=0.2)
         else:
-            self.add_item_window.focus()
-        
+            self.add_item_window.focus()    
         
     def add_item(self):
         barcode = self.aiw_barcode_text.get()
@@ -325,11 +349,115 @@ class AdminPanel:
             frame = self.add_item_window
 
             frame.title("Add employ")
-            frame.geometry(f"450x130")
-            frame.resizable(True, False)
+            frame.geometry(f"600x340")
+            
+            small_font = ("Arial", 20)
+            very_small_font = ("Arial", 13)
+
+            self.create_aew_treeview(frame)
+
+            cus = self.db.cursor()
+            cus.execute("SELECT * FROM admin;")
+            result = cus.fetchall()
+            cus.close()
+
+            for item in result:
+                self.aew_treeview.insert(parent="", index="end", iid=item[0], values=item)
+            
+            name_label = ctk.CTkLabel(frame, text="Name:", font=small_font)
+
+            self.aew_name_text = ctk.StringVar(value="")
+            name_entry = ctk.CTkEntry(frame, textvariable=self.aew_name_text, font=very_small_font)
+
+            # Password
+            password_label = ctk.CTkLabel(frame, text="Password:", font=small_font)
+
+            self.aew_password_text = ctk.StringVar(value="")
+
+            password_entry = ctk.CTkEntry(frame, textvariable=self.aew_password_text, font=very_small_font)
+
+            self.aew_root_var = ctk.IntVar(value=0)
+            root = ctk.CTkSwitch(
+                frame,
+                text="Root",
+                switch_width=54,
+                switch_height=27,
+                font=small_font,
+                variable=self.aew_root_var)
+        
+            add_btn = ctk.CTkButton(frame, text="Add employ", command=self.add_employ)
+
+            delete_btn = ctk.CTkButton(frame, text="Delete selected employ", command=self.delete_employ)
+
+            name_label.place(x=5, y=210)
+            name_entry.place(x=5, y=250)
+            password_label.place(x=150, y=210)
+            password_entry.place(x=150, y=250)
+            root.place(x=300, y=250)
+            add_btn.place(x=5, y=300)
+            delete_btn.place(x=150, y=300)
 
         else:
             self.add_item_window.focus()
+
+    def create_aew_treeview(self, frame):
+
+        self.aew_treeview = Treeview(
+            frame,
+            show="headings",
+            columns=("Name", "Password", "Root"),
+            selectmode="browse",
+            style="AEW.Treeview")
+
+        self.aew_treeview.heading("Name", text="Name", anchor=W)
+        self.aew_treeview.heading("Password", text="Password", anchor=W)
+
+        self.aew_treeview.column("Name", width=190, stretch=False)
+        self.aew_treeview.column("Password", width=190, stretch=False)
+        self.aew_treeview.column("Root", width=70, stretch=False, anchor="center")
+        self.aew_treeview.heading("Root", text="Root", anchor=W)
+
+        self.aew_treeview.place(x=0, y=0, relwidth=0.75, height=200)
+    
+    def add_employ(self):
+        name = self.aew_name_text.get()
+        password = self.aew_password_text.get()
+        
+        if self.aew_root_var.get():
+            root = "Yes"
+        else:
+            root = "No"
+
+        if not name.isspace() and not password.isspace():
+            cus = self.db.cursor()
+            values = [name, password, root]
+
+            try:
+                cus.execute("""INSERT INTO admin VALUES(?, ?, ?)""", values)
+                
+                self.aew_treeview.insert(parent="", index="end", iid=name, values=values)
+
+                name = self.aew_name_text.set("")
+                password = self.aew_password_text.set("")
+
+                self.db.commit()
+                cus.close()
+            except sqlite3.IntegrityError:
+                pass
+
+    def delete_employ(self):
+        res = self.aew_treeview.selection()
+        if len(res) == 1:
+            cus = self.db.cursor()
+            item = self.aew_treeview.item(res[0])["values"]
+
+            self.aew_treeview.delete(item[0])
+
+            cus.execute("""DELETE FROM table
+                           WHERE name = ?, password = ?;""", [item[0], item[1]])
+            
+            self.db.commit()
+            cus.close()
 
 
 class Cart(Treeview):
@@ -565,7 +693,7 @@ class App(ctk.CTk):
 
         self.aspect_ratio()
         self.create_main_frame_items()
-
+        
         self.admin_panel = AdminPanel(
             self.main_frame.tab("Admin"),
             self.VERY_SMALL_FONT,
