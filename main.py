@@ -1099,32 +1099,42 @@ class App(ctk.CTk):
     def cash_checkout(self):
         self.cc_frame = ctk.CTkFrame(self.checkout_window, fg_color="transparent")
         frame = self.cc_frame
-        var = ctk.StringVar()
-        remaining_label = ctk.CTkLabel(
-            frame,
-            text="")
-        var.trace_add("write", lambda *_: self.cw_update(remaining_label))
+        font = ("Arial", 15)
 
+        var = ctk.StringVar()
         btn = ctk.CTkButton(frame, text="Continue", command=lambda: self.checkout_window())
 
-        entry = ctk.CTkEntry(
+        customer_cash_label = ctk.CTkLabel(
+            frame,
+            text="Customer cash:",
+            font=font)
+
+        customer_cash_entry = ctk.CTkEntry(
             frame,
             height=30,
             width=170,
-            font=("Arial", 15),
+            font=font,
             textvariable=var)
         
-
-
-
-
-
-        entry.place(x=5, y=40)
+        total_price_label = ctk.CTkLabel(
+            frame,
+            text="Total price:",
+            font=font)
+        total_price_entry = ctk.CTkEntry(
+            frame,
+            height=30,
+            width=170,
+            font=font,
+            state="readonly")
+        
+        customer_cash_label.place(x=5, y=10)
+        customer_cash_entry.place(x=5, y=40)
+        total_price_label.place(x=5, y=90)
+        total_price_entry.place(x=5, y=120)
         frame.pack(fill="both", expand=True)
         self.cw_choose_frame.pack_forget()
-    def cw_update(self, label):
-        pass
-    def before_checkout(self):
+
+    def cw_check_price(self, label):
         pass
     def checkout(self, paid=None):
         pass
