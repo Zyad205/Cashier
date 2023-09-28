@@ -4,6 +4,8 @@ from tkinter import messagebox
 from settings import *
 from tkinter.ttk import Treeview, Style
 from tkinter import W
+from _tkinter import TclError
+from datetime import date
 
 
 class AdminPanel:
@@ -26,6 +28,8 @@ class AdminPanel:
 
         self.add_item_window = None
         self.add_employ_window = None
+        self.receipt_window = None
+        self.delete_receipts_window = None
 
     def create_sign_in(self, font):
         self.sign_in_frame = ctk.CTkFrame(self.master, fg_color="#333333")
@@ -58,6 +62,17 @@ class AdminPanel:
         for item in result:
             self.treeview.insert(parent="", index="end",
                                  iid=item[0], values=item)
+
+        cus.execute("""SELECT * 
+                    FROM receipts
+                    ORDER BY id DESC
+                    LIMIT 10000;""")
+
+        result = cus.fetchall()
+
+        for item in result:
+            self.receipt_treeview.insert(parent="", index="end",
+                                         iid=item[0], values=item)
 
         cus.close()
 
@@ -112,6 +127,22 @@ class AdminPanel:
             fg_color="#b3b5aa",
             hover_color="red")
 
+        search_label = ctk.CTkLabel(
+            self.main_frame,
+            text="Search:",
+            font=small_font)
+
+        self.search_entry = ctk.CTkEntry(
+            self.main_frame,
+            placeholder_text="Barcode",
+            font=small_font)
+
+        search_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Search",
+            font=very_small_font,
+            command=self.search)
+
         add_btn = ctk.CTkButton(
             self.main_frame,
             text="Add item",
@@ -130,6 +161,34 @@ class AdminPanel:
             hover_color="#c7cdd6",
             text_color="black")
 
+        self.receipt_search_entry = ctk.CTkEntry(
+            self.main_frame,
+            placeholder_text="Receipt id",
+            font=big_font)
+        
+        receipt_search_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Search",
+            command=self.receipt_search,
+            font=small_font)
+        
+        delete_old_receipt_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Delete old receipts",
+            command=self.delete_receipts,
+            font=small_font,
+            fg_color="#b3b5aa",
+            hover_color="red")
+
+        employ_statics_btn = ctk.CTkButton(
+            self.main_frame,
+            text="Employ statics",
+            command=self.add_employ_window,
+            font=small_font,
+            fg_color="#b8c5d9",
+            hover_color="#c7cdd6",
+            text_color="black")
+        
         barcode_entry.place(relx=0.001, rely=0.8, relwidth=0.085)
         barcode_label.place(relx=0.001, rely=0.75)
         name_label.place(relx=0.1, rely=0.75)
@@ -139,9 +198,23 @@ class AdminPanel:
         update_btn.place(relx=0.001, rely=0.85, relwidth=0.07, relheight=0.035)
         delete_btn.place(relx=0.08, rely=0.85, relwidth=0.07, relheight=0.035)
         add_btn.place(relx=0.001, rely=0.9, relheight=0.09, relwidth=0.07)
+
         add_employ_btn.place(relx=0.08, rely=0.9,
                              relheight=0.09, relwidth=0.07)
 
+        search_label.place(relx=0.16, rely=0.955, anchor="sw")
+
+        self.search_entry.place(relx=0.16, rely=0.99,
+                                relheight=0.03, relwidth=0.1, anchor="sw")
+
+        search_btn.place(relx=0.265, rely=0.99, anchor="sw",
+                         relwidth=0.05, relheight=0.03)
+
+        self.receipt_search_entry.place(relx=0.55, rely=0.4, relheight=0.04, relwidth=0.12)
+        receipt_search_btn.place(relx=0.55, rely=0.45, relheight=0.03, relwidth=0.05)
+        delete_old_receipt_btn.place(relx=0.68, rely=0.4, relheight=0.035, relwidth=0.1)
+        employ_statics_btn.place(relx=0.79, rely=0.4, relheight=0.035, relwidth=0.1)
+        
     def create_treeview(self):
 
         self.treeview = Treeview(
@@ -164,6 +237,31 @@ class AdminPanel:
         self.treeview.heading("Price", text="Price", anchor=W)
 
         self.treeview.place(relx=0.001, rely=0.02, relwidth=0.5, relheight=0.7)
+
+        self.receipt_treeview = Treeview(
+            self.main_frame,
+            style="Cart.Treeview",
+            show="headings",
+            columns=("Id", "Emp Name", "Total Price", "Date"),
+            selectmode="browse")
+
+        self.receipt_treeview.heading("Id", text="Id", anchor=W)
+        self.receipt_treeview.heading("Emp Name", text="Emp Name", anchor=W)
+        self.receipt_treeview.heading(
+            "Total Price", text="Total Price", anchor=W)
+        self.receipt_treeview.heading("Date", text="Date", anchor=W)
+
+        self.scrollbar_two = ctk.CTkScrollbar(
+            self.main_frame, orientation="vertical", command=self.receipt_treeview.yview)
+
+        self.receipt_treeview.configure(yscrollcommand=self.scrollbar_two.set)
+        self.scrollbar_two.place(relx=0.95, rely=0.02,
+                                 relheight=0.35, anchor="nw")
+
+        self.receipt_treeview.place(
+            relx=0.55, rely=0.02, relheight=0.35, relwidth=0.4)
+        self.receipt_treeview.bind('<<TreeviewSelect>>', self.receipt_item_selected)
+
         self.column_width()
 
     def create_style(self, very_small_font):
@@ -297,32 +395,271 @@ class AdminPanel:
             self.barcode_text.set(result[0])
             self.name_text.set(result[1])
             self.price_text.set(result[2])
+    
+    def receipt_item_selected(self, _):
+        selected_item = self.receipt_treeview.selection()
 
-    def delete_item(self):
-        item = self.treeview.selection()
-        if len(item) == 1:
+        if len(selected_item) == 1:
+            receipt_id = self.receipt_treeview.item(selected_item[0])["values"][0]
+            self.receipt_search_entry.delete(0, "end")
+            self.receipt_search_entry.insert(0, receipt_id)
+   
+    def receipt_search(self):
+
+        receipt_id = self.receipt_search_entry.get()
+        if receipt_id.isdigit():
+            cus = self.db.cursor()
+            cus.execute("SELECT * FROM receipts WHERE id = ?", [int(receipt_id)])
+            result = cus.fetchone()
+
+            if result is not None:
+                self.open_receipt_window(values=result)
+
+            else:
+                messagebox.showerror("Receipt not found", message="Couldn't find the receipt")
+
+        self.receipt_search_entry.delete(0, "end")
+    
+    def open_receipt_window(self, values):
+        if self.receipt_window is None or not self.receipt_window.winfo_exists():
+            self.receipt_window = ctk.CTkToplevel()
+            frame = self.receipt_window
+            frame.title("Receipt")
+
+            frame.geometry("600x340")
+            frame.attributes("-topmost", True)
+            frame.grab_set()
+            frame.resizable(False, False)
+
+            self.rw_values = values
+
+            first_label = ctk.CTkLabel(
+                frame,
+                font=SMALL_FONT_ESH,
+                text=f"Id: {values[0]}")
+
+            second_label = ctk.CTkLabel(
+                frame,
+                font=SMALL_FONT_ESH,
+                text=f"Emp Name: {values[1]}")
+
+            self.total_receipt_price = ctk.CTkLabel(
+                frame,
+                font=SMALL_FONT_ESH,
+                text=f"Total Price: %.2f" % (values[2]))
+
+            fourth_label = ctk.CTkLabel(
+                frame,
+                font=SMALL_FONT_ESH,
+                text=f"Date: {values[3]}")
+
+            first_label.place(x=5, y=5)
+            second_label.place(x=5, y=40)
+            self.total_receipt_price.place(x=350, y=5)
+            fourth_label.place(x=350, y=40)
+
+            self.rw_treeview = Treeview(
+                frame,
+                show="headings",
+                columns=("Name", "Qty", "Total Price"),
+                style="AEW.Treeview",
+                selectmode="browse")
+            
+            rw_scrollbar = ctk.CTkScrollbar(frame, command=self.rw_treeview.yview, height=200)
+
+            self.rw_treeview.configure(yscrollcommand=rw_scrollbar.set)
+
+            self.rw_treeview.heading("Name", text="Name", anchor=W)
+            self.rw_treeview.heading("Qty", text="Qty", anchor=W)
+            self.rw_treeview.heading("Total Price", text="Total Price", anchor=W)
+
+            self.rw_treeview.column("Name", width=390, minwidth=100, stretch=False)
+            self.rw_treeview.column("Qty", width=50, minwidth=40, stretch=False, anchor="center")
+            self.rw_treeview.column("Total Price", width=130, minwidth=100, stretch=False)
+
             cus = self.db.cursor()
 
-            barcode = self.treeview.item(item[0])["values"][0]
+            command = """SELECT receipts_items.item_name, receipts_items.qty, items.price
+                         FROM receipts_items
+                         JOIN items ON receipts_items.item_name = items.name
+                         WHERE receipts_items.receipt_barcode = ?;"""
+            
+            cus.execute(command, [values[0]])
+            result = cus.fetchall()
+            for item in result:
+                qty = item[1]
+                price = item[2]
+                total_price = round(qty * price, 2)
+                total_price = "%.2f" % total_price
+                self.rw_treeview.insert(parent="", index="end", iid=item[0], values=(item[0], qty, total_price))
 
-            cus.execute("""DELETE FROM items
-                        WHERE barcode = ?""", [barcode])
+            single_return_btn = ctk.CTkButton(
+                frame,
+                text="Return selected item",
+                font=VERY_SMALL_FONT_ESH,
+                fg_color="#9ee3e6",
+                hover_color="#b6e1e3",
+                text_color="#242424",
+                command=self.return_item)
+            
+            whole_return_btn = ctk.CTkButton(
+                frame,
+                text="Return whole receipt",
+                font=VERY_SMALL_FONT_ESH,
+                fg_color="#b3b5aa",
+                hover_color="red",
+                command=lambda: self.return_item(True))
 
-            self.db.commit()
+            self.rw_treeview.place(x=0, y=70, width=570, height=200)
+            rw_scrollbar.place(x=570, y=70, anchor="nw")
+            single_return_btn.place(x=5, y=290)
+            whole_return_btn.place(x=160, y=290)
+            cus.close()
+        else:
+            self.receipt_window.focus()
+    
+    def return_item(self, whole_receipt=False):
+        values = self.rw_values
+
+        if whole_receipt:
+            dialog = ctk.CTkToplevel()
+            dialog.protocol("WM_DELETE_WINDOW", print) 
+            dialog.grab_set()  # Set modal state for the dialog window
+            label = ctk.CTkLabel(dialog, text="Temporary until yes or no is answered")
+            label.pack(expand=True, fill="both")
+
+            sure = messagebox.askyesno(
+                title="Return receipt",
+                message="Are you sure you want to return thw whole receipt")
+            
+            dialog.destroy() 
+            self.receipt_window.grab_set()
+
+            cus = self.db.cursor()
+
+            cus.execute("SELECT total_price FROM receipts WHERE id = ?", [values[0]])
+            item_price = cus.fetchone()
             cus.close()
 
-            self.treeview.delete(item[0])
+            if sure and item_price != 0:
+                receipt_id = values[0]
+                cus = self.db.cursor()
 
-            self.barcode_text.set("")
-            self.name_text.set("")
-            self.price_text.set("")
+                cus.execute("""DELETE FROM receipts_items
+                            WHERE receipt_barcode = ?""", [receipt_id])
+                
+                cus.execute("""UPDATE receipts
+                            SET total_price = ?
+                            WHERE id = ?""", (0, receipt_id))
+
+                self.db.commit()
+
+                cus.close()
+                exists = self.receipt_treeview.exists(receipt_id)
+
+                if exists:
+                    self.receipt_treeview.item(receipt_id, values=(values[0], values[1], "0.00", values[3]))
+
+                messagebox.showinfo(
+                    title="Return receipt",
+                    message="Please return %.2f to the customer" % values[2])
+                
+                self.rw_treeview.delete(*self.rw_treeview.get_children())
+
+                self.total_receipt_price.configure(text="Total_price: 0")
+        else:
+            selected = self.rw_treeview.selection()
+
+            dialog = ctk.CTkToplevel()
+            dialog.protocol("WM_DELETE_WINDOW", print) 
+            dialog.grab_set()  # Set modal state for the dialog window
+            label = ctk.CTkLabel(dialog, text="Temporary until yes or no is answered")
+            label.pack(expand=True, fill="both")
+            sure = messagebox.askyesno(
+                title="Return item",
+                message="Are you sure you want to return selected item")
+            dialog.destroy()
+
+            self.receipt_window.grab_set()
+
+            if len(selected) != 0 and sure:
+                selected = selected[0]
+
+                receipt_id = values[0]
+                item_price = round(float(self.rw_treeview.item(selected)["values"][2]), 2)
+
+                cus = self.db.cursor()
+                cus.execute("SELECT total_price FROM receipts WHERE id = ?", [receipt_id])
+
+                old_total_price = cus.fetchone()[0]
+
+                new_total_price = old_total_price - item_price
+                self.rw_treeview.delete(selected)
+
+                self.receipt_treeview.item(
+                    item=values[0],
+                    values=(receipt_id, values[1], new_total_price, values[3]))
+                
+                self.total_receipt_price.configure(text="Total price: %.2f" % new_total_price)
+
+
+                cus.execute("""UPDATE receipts 
+                            SET total_price = ?
+                            WHERE id = ?""", (new_total_price, receipt_id))
+                
+
+                cus.execute("""DELETE FROM receipts_items
+                        WHERE item_name = ? AND receipt_barcode = ?""", (selected, receipt_id))
+
+                self.db.commit()
+
+                messagebox.showinfo(
+                    title="Return receipt",
+                    message="Please return %.2f to the customer" % item_price)
+
+            elif len(selected) == 0 and sure:
+                messagebox.showerror(title="No item is selected", message="You didn't select any item")
+                
+    def delete_item(self):
+        item = self.treeview.selection()
+
+        if len(item) == 1:
+            sure = messagebox.askyesno(
+                "Delete item", message="Are you sure you want to delete it")
+            if sure:
+                cus = self.db.cursor()
+
+                barcode = self.treeview.item(item[0])["values"][0]
+
+                cus.execute("""DELETE FROM items
+                            WHERE barcode = ?""", [barcode])
+
+                self.db.commit()
+                cus.close()
+
+                self.treeview.delete(item[0])
+
+                self.barcode_text.set("")
+                self.name_text.set("")
+                self.price_text.set("")
+
+    def search(self):
+        barcode = self.search_entry.get()
+        self.search_entry.delete(0, "end")
+
+        try:
+            self.treeview.selection_set(barcode)
+        except TclError:
+            messagebox.showerror(
+                "Item not found", message="Items is not registered")
 
     def add_item_window(self):
         if self.add_item_window is None or not self.add_item_window.winfo_exists():
             self.add_item_window = ctk.CTkToplevel()
             frame = self.add_item_window
-
+            
             frame.attributes("-topmost", True)
+            frame.grab_set()
 
             frame.title("Add item")
             frame.geometry(f"450x130")
@@ -390,7 +727,7 @@ class AdminPanel:
                     cus.close()
                 except sqlite3.IntegrityError:
                     messagebox.showerror(
-                        title="Item registered", message="Item is already added")
+                        title="Item registered", message="Barcode or name is already taken")
 
             except ValueError:
                 pass
@@ -404,7 +741,7 @@ class AdminPanel:
             frame.geometry(f"600x340")
 
             frame.resizable(False, False)
-
+            frame.grab_set()
             frame.attributes("-topmost", True)
 
             small_font = ("Arial", 20)
@@ -480,7 +817,12 @@ class AdminPanel:
             "Root", width=70, stretch=False, anchor="center")
         self.aew_treeview.heading("Root", text="Root", anchor=W)
 
+        self.aew_scrollbar = ctk.CTkScrollbar(
+            frame, command=self.aew_treeview.yview, height=200)
+        self.aew_treeview.configure(yscrollcommand=self.aew_scrollbar.set)
+
         self.aew_treeview.place(x=0, y=0, relwidth=0.75, height=200)
+        self.aew_scrollbar.place(relx=0.75, y=0, anchor="nw")
 
     def add_employ(self):
         name = self.aew_name_text.get()
@@ -524,6 +866,98 @@ class AdminPanel:
             self.db.commit()
             cus.close()
 
+    def delete_receipts(self):
+        if self.delete_receipts_window is None or not self.delete_receipts_window.winfo_exists():
+            self.delete_receipts_window = ctk.CTkToplevel()
+            frame = self.delete_receipts_window
+
+            frame.attributes("-topmost", True)
+            frame.grab_set()
+
+            frame.title("Delete receipts")
+            frame.geometry(f"350x200")
+            frame.resizable(False, False)
+
+            small_font = ("Arial", 20)
+            very_small_font = ("Arial", 15)
+
+            def check():
+                year_text = year_entry.get()
+                month_text = month_combobox.get()
+
+                if year_text.isdigit() and len(year_text) == 4:
+                    cus = self.db.cursor()
+
+                    cus.execute("""SELECT id 
+                                FROM receipts
+                                WHERE date < ?""", [f"{year_text}-{month_text}-01"])
+                    
+                    result = cus.fetchall()
+
+                    cus.executemany("""DELETE FROM receipts
+                                    WHERE id = ?""", result)
+                    count = cus.rowcount
+                    
+                    cus.executemany("""DELETE FROM receipts_items
+                                    WHERE receipt_barcode = ?""", result)
+                    
+                    messagebox.showinfo(
+                        title="Deleted successfully",
+                        message=f"Deleted {count} receipts successfully")
+
+                    self.db.commit()
+                    cus.close()
+                    if count != 0:
+                        self.update_receipt_treeview()
+                else:
+                    messagebox.showerror(title="Invalid input", message="Invalid year")
+
+                year_entry.delete(0, "end")
+                month_combobox.set("01")
+                
+            label = ctk.CTkLabel(frame, text="Delete Before:", font=small_font, text_color="#d94011")
+
+            year_label = ctk.CTkLabel(frame, text="Year:", font=small_font)
+            year_entry = ctk.CTkEntry(frame, width=150, font=small_font)
+
+            month_label = ctk.CTkLabel(frame, text="Month:", font=small_font)
+            month_combobox = ctk.CTkOptionMenu(frame, values=MONTHS)
+            
+            delete_btn = ctk.CTkButton(
+                frame,
+                font=very_small_font,
+                text="Delete",
+                width=70,
+                fg_color="#b3b5aa",
+                hover_color="red",
+                command=check)
+            
+            label.place(x=5, y=5)
+            year_label.place(x=5, y=45)
+            month_label.place(x=170, y=45)
+            year_entry.place(x=5, y=80)
+            month_combobox.place(x=170, y=80)
+            delete_btn.place(x=5, y=130)
+
+        else:
+            self.delete_receipts_window.focus()
+
+    def update_receipt_treeview(self):
+        self.receipt_treeview.delete(*self.receipt_treeview.get_children())
+
+        cus = self.db.cursor()
+        cus.execute("""SELECT * 
+                    FROM receipts
+                    ORDER BY id DESC
+                    LIMIT 10000;""")
+
+        result = cus.fetchall()
+
+        for item in result:
+            self.receipt_treeview.insert(parent="", index="end",
+                                         iid=item[0], values=item)
+            
+        cus.close()
 
 class Cart(Treeview):
 
@@ -667,12 +1101,12 @@ class Cart(Treeview):
         else:
             new_qty = int(qty)
 
-        new_total_price = str(round(float(values[1]), 2) * new_qty)
+        new_total_price = str(round(round(float(values[1]), 2) * new_qty, 2))
 
         self.item(item_name,
                   values=(item_name, values[1], new_qty, new_total_price))
 
-        self.update_total_price(False)
+        self.update_total_price()
 
     def add(self, item_name, item_price, qty, total_price):
 
@@ -725,8 +1159,9 @@ class Cart(Treeview):
         item = self.selection()
         if len(item) != 0:
             self.delete(item[0])
-
-    def update_total_price(self, add, total_price=None):
+            self.update_total_price()
+        
+    def update_total_price(self, add=False, total_price=None):
         if add:
             self.total_price = round(self.total_price + total_price, 2)
             self.total_price_text.set(str(self.total_price))
@@ -865,16 +1300,27 @@ class App(ctk.CTk):
             id INTEGER,
             emp_name TEXT,
             total_price DECIMAl (20, 2),
+            date TEXT,
             PRIMARY KEY (id))"""
 
         cursor.execute(command)
 
         command = """CREATE TABLE IF NOT EXISTS receipts_items (
-            item_barcode INTEGER,
+            item_name TEXT, 
             qty INTEGER,
-            receipt_barcode INTEGER REFERENCES receipts (id) ON DELETE SET NULL,
-            FOREIGN KEY (item_barcode) REFERENCES items (barcode) ON DELETE SET NULL)"""
+            price REAL,
+            receipt_barcode INTEGER, 
+            FOREIGN KEY(receipt_barcode) REFERENCES receipts(id) ON DELETE SET NULL )"""
 
+        cursor.execute(command)
+
+        command = "CREATE INDEX IF NOT EXISTS barcode ON items ('barcode' ASC);"
+        cursor.execute(command)
+
+        command = "CREATE INDEX IF NOT EXISTS main ON receipts (id ASC, date);"
+        cursor.execute(command)
+
+        command = "CREATE INDEX IF NOT EXISTS main_2 ON receipts_items (receipt_barcode ASC);"
         cursor.execute(command)
 
         self.db.commit()
@@ -955,7 +1401,8 @@ class App(ctk.CTk):
         # Add to cart button
         self.add_btn = ctk.CTkButton(
             frame, text="Add to cart", command=self.add_to_cart)
-
+        self.barcode_id_label = ctk.CTkLabel(
+            frame, font=self.SMALL_FONT, text=f"Barcode: {self.next_receipt_id()}")
         self.user_label = ctk.CTkLabel(frame, font=self.SMALL_FONT)
         self.user_btn = ctk.CTkButton(
             frame,
@@ -983,11 +1430,27 @@ class App(ctk.CTk):
         self.item_name_entry.place(relx=0.0054, rely=0.26, relwidth=0.15)
         self.item_price_entry.place(relx=0.2054, rely=0.26)
         self.add_btn.place(relx=0.0054, rely=0.33, relwidth=0.08)
+        self.barcode_id_label.place(relx=0.999, rely=0.999, anchor="se")
         self.user_label.place(relx=0.001, rely=0.96)
         self.user_btn.place(relx=0.001, rely=0.93,
                             relheight=0.025, relwidth=0.06)
         checkout_btn.place(relx=0.87, rely=0.85, relwidth=0.1, relheight=0.08)
+    
+    def next_receipt_id(self):
+        cus = self.db.cursor()
+        cus.execute("""SELECT id 
+                    FROM receipts
+                    ORDER BY id DESC
+                    LIMIT 1""")
 
+        result = cus.fetchone()
+        if result is not None:
+            id = result[0] + 1
+        else:
+            id = 1
+        cus.close()
+        return id
+    
     def retrieve_items(self):
         barcode = self.entry_text.get()
         if barcode.isdigit():
@@ -1045,16 +1508,23 @@ class App(ctk.CTk):
             self.admin_panel.check_signed_in()
         else:
             self.admin_panel.signed_in = False
+            id = self.next_receipt_id()
+            self.barcode_id_label.configure(text="Barcode: " + str(id))
 
     def show_checkout(self):
+        if self.cart.total_price == 0:
+            messagebox.showerror(title="Invalid cart",
+                                 message="Can't checkout with zero items")
+            return
+
         if self.checkout_window is None or not self.checkout_window.winfo_exists():
             self.checkout_window = ctk.CTkToplevel(fg_color="#4d7861")
             frame = self.checkout_window
 
             frame.attributes("-topmost", True)
-
+            frame.grab_set()
             self.cc_frame = None
-            
+
             frame.title("Checkout")
             frame.geometry(f"350x200")
             frame.resizable(False, False)
@@ -1070,20 +1540,20 @@ class App(ctk.CTk):
                 text="Cash or Credit: ",
                 font=small_font,
                 text_color="#8ebfbd")
-            
+
             cash_btn = ctk.CTkButton(
                 choose_frame,
                 text="Cash",
-                font=very_small_font, 
+                font=very_small_font,
                 command=self.cash_checkout,
                 fg_color="#47c900",
                 hover_color="#cfc86d")
-            
+
             credit_btn = ctk.CTkButton(
                 choose_frame,
                 font=very_small_font,
                 text="Credit",
-                command=self.show_checkout,
+                command=self.checkout,
                 fg_color="#c26c15",
                 hover_color="#a37d56")
 
@@ -1095,14 +1565,17 @@ class App(ctk.CTk):
         else:
             self.checkout_window.focus()
 
-    
     def cash_checkout(self):
-        self.cc_frame = ctk.CTkFrame(self.checkout_window, fg_color="transparent")
+        self.cw_choose_frame.pack_forget()
+
+        self.cc_frame = ctk.CTkFrame(
+            self.checkout_window, fg_color="transparent")
         frame = self.cc_frame
         font = ("Arial", 15)
 
         var = ctk.StringVar()
-        btn = ctk.CTkButton(frame, text="Continue", command=lambda: self.checkout_window())
+        btn = ctk.CTkButton(frame, text="Continue",
+                            command=lambda: self.cw_check_price(var))
 
         customer_cash_label = ctk.CTkLabel(
             frame,
@@ -1115,28 +1588,119 @@ class App(ctk.CTk):
             width=170,
             font=font,
             textvariable=var)
-        
+
         total_price_label = ctk.CTkLabel(
             frame,
             text="Total price:",
             font=font)
+
+        text = str(self.cart.total_price)
+
+        hmm = ctk.StringVar(value=text)
         total_price_entry = ctk.CTkEntry(
             frame,
             height=30,
             width=170,
             font=font,
-            state="readonly")
-        
+            state="readonly",
+            textvariable=hmm)
+
         customer_cash_label.place(x=5, y=10)
         customer_cash_entry.place(x=5, y=40)
         total_price_label.place(x=5, y=90)
         total_price_entry.place(x=5, y=120)
+        btn.place(x=200, y=120)
         frame.pack(fill="both", expand=True)
-        self.cw_choose_frame.pack_forget()
 
-    def cw_check_price(self, label):
-        pass
+    def cw_check_price(self, var):
+        error = False
+        try:
+            paid = round(float(var.get()), 2)
+            if self.cart.total_price <= paid:
+                self.cc_frame.pack_forget()
+                self.checkout(paid)
+            else:
+                error = True
+        except ValueError:
+            error = True
+
+        if error:
+            messagebox.showerror(title="Invalid input",
+                                 message="Invalid cash amount")
+
     def checkout(self, paid=None):
+        frame = self.checkout_window
+
+        radio_var = ctk.IntVar(value=0)
+        remaining_label = ctk.CTkLabel(frame, font=(
+            "Arial", 18), text="Remaining:\n0.00")
+        if paid is not None:
+            radio_var.set(1)
+            remaining = paid - self.cart.total_price
+            remaining = round(remaining, 2)
+            remaining_label.configure(text=f"Remaining:\n{remaining}")
+        else:
+            self.cw_choose_frame.pack_forget()
+
+        radio_btn_one = ctk.CTkRadioButton(
+            frame,
+            text="Cash",
+            value=1,
+            variable=radio_var,
+            corner_radius=0,
+            state="disabled",
+            text_color_disabled="#DCE4EE")
+
+        radio_btn_two = ctk.CTkRadioButton(
+            frame,
+            text="Credit",
+            value=0,
+            variable=radio_var,
+            corner_radius=0,
+            state="disabled",
+            text_color_disabled="#DCE4EE")
+
+        print_btn = ctk.CTkButton(
+            frame, text="Print", command=self.print, width=70)
+        finish_btn = ctk.CTkButton(
+            frame, text="Finish", command=self.finish, width=70)
+
+        remaining_label.place(x=5, y=5)
+        radio_btn_one.place(x=280, y=20)
+        radio_btn_two.place(x=280, y=50)
+        print_btn.place(x=5, y=165)
+        finish_btn.place(x=275, y=165)
+
+    def finish(self):
+        cus = self.db.cursor()
+        id = self.next_receipt_id()
+
+        command = """INSERT INTO receipts(emp_name, total_price, date) VALUES(?, ?, ?)"""
+        cus.execute(command, (self.user, self.cart.total_price, date.today()))
+
+        self.admin_panel.receipt_treeview.insert(
+            parent="", iid=id, index=0,
+            values=(id, self.user, self.cart.total_price, date.today()))
+
+        command = """INSERT INTO receipts_items VALUES(?, ?, ?, ?)"""
+        values = []
+        for item in self.cart.get_children():
+            vals = self.cart.item(item)["values"]
+            values.append((vals[0], vals[2], vals[1], id))
+            self.cart.delete(vals[0])
+
+        cus.executemany(command, values)
+
+        self.barcode_id_label.configure(
+            text=f"Barcode: {id + 1}")
+        self.cart.total_price = 0
+        self.cart.total_price_text.set("0")
+        self.checkout_window.destroy()
+        self.db.commit()
+        cus.close()
+
+    def print(self):
         pass
+
 
 App()
